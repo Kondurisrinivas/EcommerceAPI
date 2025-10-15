@@ -1,4 +1,32 @@
 @EcommerceAPI_HostAddress = http://localhost:5283
 
+###
+
+# Register a new customer
+POST {{EcommerceAPI_HostAddress}}/Api/Customers/register
+Content-Type: application/x-www-form-urlencoded
+
+Name=John Doe&Email=john@example.com&Password=SecurePass123
+
+###
+
+# Get customer by ID
+GET {{EcommerceAPI_HostAddress}}/Api/Customers/1
+
+###
+
+# Register another customer
+POST {{EcommerceAPI_HostAddress}}/Api/Customers/register
+Content-Type: application/x-www-form-urlencoded
+
+Name=Jane Smith&Email=jane@example.com&Password=SecurePass456
+
+###
+
+# Test duplicate email (should return BadRequest)
+POST {{EcommerceAPI_HostAddress}}/Api/Customers/register
+Content-Type: application/x-www-form-urlencoded
+
+Name=John Duplicate&Email=john@example.com&Password=AnotherPass789
 
 ###

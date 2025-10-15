@@ -14,5 +14,4 @@ namespace EcommerceAPI.DTO
             [StringLength(100)]
             public string Password { get; set; }
         }
-    }
 }
