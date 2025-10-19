@@ -1,4 +1,5 @@
 ﻿using EcommerceAPI.Data;
+using EcommerceAPI.DTO;
 using EcommerceAPI.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,13 +21,26 @@ namespace EcommerceAPI.Controllers
         //Get All Products
         public async Task<ActionResult<IEnumerable<Product>>> GetAllProducts()
         {
-            var products =await _context.Products.ToListAsync();
+            var products = await _context.Products.ToListAsync();
             return Ok(products);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Product>> GetProduct(int id)
+        {
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound($"Product with ID {id} not found.");
+            }
+
+            return Ok(product);
         }
 
         [HttpGet("orders/{id}")]
         //Get Oders with ID
-        public async Task<ActionResult<Product>> GetProductByID(int id)
+        public async Task<ActionResult<Product>> GetProductOrders(int id)
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null)
@@ -101,7 +115,7 @@ namespace EcommerceAPI.Controllers
         public async Task<ActionResult> GetProductSalesStats(int id)
         {
             var product = await _context.Products.FindAsync(id);
-            if(product == null)
+            if (product == null)
             {
                 return NotFound($"Product with ID {id} not found.");
             }
@@ -164,6 +178,133 @@ namespace EcommerceAPI.Controllers
             }
 
             return Ok(products);
+        }
+
+
+        [HttpPost]
+        public async Task<ActionResult<Product>> CreateProduct([FromBody] ProductCreateDTO productcrtdto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var product = new Product
+            {
+                Name = productcrtdto.Name,
+                Description = productcrtdto.Description,
+                Category = productcrtdto.Category,
+                Price = productcrtdto.Price,
+                Stock = productcrtdto.Stock
+            };
+
+            _context.Products.Add(product);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetProduct), new { product.Id }, product);
+        }
+
+        // PUT: Api/Products/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateProduct(int id, [FromBody] ProductCreateDTO productDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound($"Product with ID {id} not found.");
+            }
+
+            product.Name = productDto.Name;
+            product.Description = productDto.Description;
+            product.Category = productDto.Category;
+            product.Price = productDto.Price;
+            product.Stock = productDto.Stock;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!await ProductExists(id))
+                {
+                    return NotFound();
+                }
+                throw;
+            }
+
+            return Ok(product);
+        }
+
+        private async Task<bool> ProductExists(int id)
+        {
+            return await _context.Products.AnyAsync(e => e.Id == id);
+        }
+
+
+        // DELETE: Api/Products/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteProduct(int id)
+        {
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound($"Product with ID {id} not found.");
+            }
+
+            // Check if product is part of any orders
+            var hasOrders = await _context.OrderItems.AnyAsync(oi => oi.ProductId == id);
+            if (hasOrders)
+            {
+                return BadRequest("Cannot delete product that is part of existing orders. Consider marking it as out of stock instead.");
+            }
+
+            _context.Products.Remove(product);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Product deleted successfully" });
+        }
+
+        // GET: Api/Products/popular?limit=5
+        [HttpGet("popular")]
+        public async Task<ActionResult> GetPopularProducts([FromQuery] int limit = 5)
+        {
+            var popularProducts = await _context.OrderItems
+                .GroupBy(oi => oi.ProductId)
+                .Select(g => new
+                {
+                    ProductId = g.Key,
+                    TotalQuantitySold = g.Sum(oi => oi.Quantity),
+                    TotalOrders = g.Count(),
+                    TotalRevenue = g.Sum(oi => oi.Quantity * oi.UnitPrice)
+                })
+                .OrderByDescending(p => p.TotalQuantitySold)
+                .Take(limit)
+                .ToListAsync();
+
+            var productDetails = new List<object>();
+            foreach (var item in popularProducts)
+            {
+                var product = await _context.Products.FindAsync(item.ProductId);
+                if (product != null)
+                {
+                    productDetails.Add(new
+                    {
+                        Product = product,
+                        TotalQuantitySold = item.TotalQuantitySold,
+                        TotalOrders = item.TotalOrders,
+                        TotalRevenue = item.TotalRevenue
+                    });
+                }
+            }
+            return Ok(productDetails);
         }
     }
 }
